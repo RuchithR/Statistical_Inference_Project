@@ -3,6 +3,7 @@
 
 Usage:
     pip install pandas numpy scipy matplotlib statsmodels
+    curl -o hillstrom.csv "http://www.minethatdata.com/Kevin_Hillstrom_MineThatData_E-MailAnalytics_DataMiningChallenge_2008.03.20.csv"
     python validate_hillstrom.py --input hillstrom.csv --outdir results
 
 The script standardizes column names and categorical whitespace, keeps rows with

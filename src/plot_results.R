@@ -10,16 +10,64 @@ library(dplyr)
 library(tidyr)
 library(akima)
 
-if (!file.exists("simulation_results.csv") || !file.exists("coverage_results.csv")) {
-  stop("Python CSV outputs are missing. Run generate_data.py first.")
+args <- commandArgs(trailingOnly = FALSE)
+file_arg <- sub("^--file=", "", args[grep("^--file=", args)])
+if (length(file_arg) > 0 && nzchar(file_arg)) {
+  script_dir <- dirname(normalizePath(file_arg, winslash = "/"))
+} else {
+  script_dir <- getwd()
+}
+project_root <- dirname(script_dir)
+results_dir <- file.path(project_root, "montecarlo_results")
+if (!dir.exists(results_dir)) {
+  dir.create(results_dir, recursive = TRUE)
+}
+setwd(project_root)
+
+simulation_path <- file.path(results_dir, "simulation_results.csv")
+coverage_path <- file.path(results_dir, "coverage_results.csv")
+
+if (!file.exists(simulation_path) || !file.exists(coverage_path)) {
+  stop("Python CSV outputs are missing. Run generate_data.py from the project root first.")
 }
 
 # Read computed data from Python
-simulation_df <- read.csv("simulation_results.csv")
-coverage_df <- read.csv("coverage_results.csv")
+simulation_df <- read.csv(simulation_path)
+coverage_df <- read.csv(coverage_path)
+
+get_hillstrom_reference_point <- function() {
+  proj_root <- dirname(script_dir)
+  summary_path <- file.path(proj_root, "hillstrom_results", "group_summary.csv")
+
+  if (!file.exists(summary_path)) {
+    return(NULL)
+  }
+
+  group_df <- read.csv(summary_path)
+  if ("arm" %in% names(group_df)) {
+    ref <- group_df %>%
+      filter(arm == "A") %>%
+      slice_head(n = 1)
+  } else {
+    ref <- group_df %>%
+      slice_head(n = 1)
+  }
+
+  if (nrow(ref) == 0) {
+    return(NULL)
+  }
+
+  tibble(
+    n = as.numeric(ref$n),
+    p_baseline = as.numeric(ref$conversion_rate),
+    label = "Hillstrom"
+  )
+}
+
+hillstrom_point <- get_hillstrom_reference_point()
 
 # -------------------------------------------------------------------
-# 1. Type I error line plot
+# 1. Type I error line plot (Updated with Fisher's Exact Test)
 # -------------------------------------------------------------------
 plot_type1_error <- function(df) {
   df_long <- df %>%
@@ -31,20 +79,35 @@ plot_type1_error <- function(df) {
     geom_line(aes(color = "Z-Test"), linewidth = 1.1) +
     geom_point(aes(color = "Z-Test"), size = 2) +
     geom_line(aes(y = type1_lrt, color = "LRT"), linewidth = 1.1, linetype = "dashed") +
-    geom_point(aes(y = type1_lrt, color = "LRT"), size = 2) +
+    geom_point(aes(y = type1_lrt, color = "LRT"), size = 2)
+
+  if ("type1_fisher" %in% names(df_long)) {
+    plt <- plt +
+      geom_line(aes(y = type1_fisher, color = "Fisher's Exact"), linewidth = 1.1, linetype = "dotdash", na.rm = TRUE) +
+      geom_point(aes(y = type1_fisher, color = "Fisher's Exact"), size = 2, shape = 17, na.rm = TRUE)
+  }
+
+  plt <- plt +
     geom_hline(yintercept = 0.05, color = "red", linetype = "dotted") +
-    scale_x_log10() +
+    scale_x_log10(limits = c(20, 100000)) +
     facet_wrap(~ p_baseline, labeller = label_both, ncol = length(p_levels)) +
     labs(
       x = "Sample Size per Group (n)",
       y = "Empirical Type I Error Rate",
       color = "Method",
-      title = "Empirical Type I Error Rate vs. Sample Size"
+      title = if ("type1_fisher" %in% names(df_long)) {
+        "Empirical Type I Error Rate by Sample Size and Baseline Rate (Z-Test, LRT, Fisher's Exact)"
+      } else {
+        "Empirical Type I Error Rate by Sample Size and Baseline Rate (Z-Test, LRT)"
+      }
+    ) +
+    scale_color_manual(
+      values = c("Z-Test" = "#F8766D", "LRT" = "#00BFC4", "Fisher's Exact" = "#C77CFF")
     ) +
     theme_minimal(base_size = 12) +
     theme(legend.position = "top")
 
-  ggsave("type1_error_plot.png", plot = plt, width = 12, height = 5, dpi = 300)
+  ggsave(file.path(results_dir, "type1_error_plot.png"), plot = plt, width = 12, height = 5, dpi = 300)
   print(plt)
 }
 
@@ -66,19 +129,19 @@ plot_coverage <- function(df) {
     geom_line(aes(color = method), linewidth = 1.1) +
     geom_point(aes(color = method), size = 2) +
     geom_hline(yintercept = 0.95, color = "red", linetype = "dotted") +
-    scale_x_log10() +
+    scale_x_log10(limits = c(20, 100000)) +
     facet_wrap(~ p_baseline, labeller = label_both, ncol = length(unique(df_long$p_baseline))) +
     labs(
       x = "Sample Size per Group (n)",
-      y = "Empirical Coverage",
-      title = "95% Confidence Interval Coverage vs. Sample Size",
+      y = "Empirical Coverage Probability",
+      title = "Empirical 95% Confidence Interval Coverage by Sample Size and Baseline Rate",
       color = "Interval Type"
     ) +
     coord_cartesian(ylim = c(0.75, 1.0)) +
     theme_minimal(base_size = 12) +
     theme(legend.position = "top")
 
-  ggsave("coverage_plot.png", plot = plt, width = 12, height = 5, dpi = 300)
+  ggsave(file.path(results_dir, "coverage_plot.png"), plot = plt, width = 12, height = 5, dpi = 300)
   print(plt)
 }
 
@@ -139,16 +202,40 @@ plot_phase_diagram <- function(df, metric = "type1_z") {
       linewidth = 0.4
     ) +
     geom_hline(yintercept = 0.05, linetype = "dashed", color = "black", alpha = 0.7) +
-    scale_x_continuous(trans = "log10") +
+    labs(fill = "Empirical Type I error rate")
+
+  if (!is.null(hillstrom_point)) {
+    plt <- plt +
+      geom_point(
+        data = hillstrom_point,
+        aes(x = n, y = p_baseline),
+        inherit.aes = FALSE,
+        color = "black",
+        size = 3,
+        shape = 17
+      ) +
+      geom_text(
+        data = hillstrom_point,
+        aes(x = n, y = p_baseline, label = label),
+        inherit.aes = FALSE,
+        hjust = -0.1,
+        vjust = -0.4,
+        size = 4,
+        color = "black"
+      )
+  }
+
+  plt <- plt +
+    scale_x_continuous(trans = "log10", limits = c(20, 100000)) +
     labs(
-      x = "Sample size per group, n",
-      y = "Baseline conversion rate, p",
-      title = title_label
+      x = "Sample Size per Group (n)",
+      y = "Baseline Conversion Rate (p)",
+      title = paste0(title_label)
     ) +
     theme_minimal(base_size = 12)
 
   ggsave(
-    filename = paste0("phase_diagram_", metric, ".png"),
+    filename = file.path(results_dir, paste0("phase_diagram_", metric, ".png")),
     plot = plt,
     width = 8,
     height = 6,
@@ -163,4 +250,4 @@ plot_coverage(coverage_df)
 plot_phase_diagram(simulation_df, metric = "type1_z")
 plot_phase_diagram(simulation_df, metric = "type1_lrt")
 
-cat("Plots saved to the working directory.\n")
+cat("Plots saved to:", results_dir, "\n")

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -64,39 +66,68 @@ def compute_lrt(
 
     return g2_stats, p_values
 
+def compute_fisher_exact(
+    successes_a: np.ndarray,
+    n_a: int,
+    successes_b: np.ndarray,
+    n_b: int,
+) -> np.ndarray:
+    """Calculates two-sided p-values using Fisher's Exact Test across simulated arrays."""
+    p_values = np.zeros_like(successes_a, dtype=float)
+    
+    for i in range(len(successes_a)):
+        contingency_table = [
+            [successes_a[i], n_a - successes_a[i]],
+            [successes_b[i], n_b - successes_b[i]]
+        ]
+        # Calculate the exact p-value
+        _, p_values[i] = stats.fisher_exact(contingency_table, alternative='two-sided')
+        
+    return p_values
 
 def run_single_simulation(
     sample_size: int,
     baseline_p: float,
     num_replications: int = 10000,
     alpha: float = 0.05,
-) -> tuple[float, float]:
-    """Simulates empirical Type I error rates under the null hypothesis."""
+    run_exact: bool = True,
+) -> tuple[float, float, float]:
+    """Simulates empirical Type I error rates, incorporating the exact test."""
     successes_a = np.random.binomial(n=sample_size, p=baseline_p, size=num_replications)
     successes_b = np.random.binomial(n=sample_size, p=baseline_p, size=num_replications)
 
     _, p_values_z = compute_z_test(successes_a, sample_size, successes_b, sample_size)
     _, p_values_lrt = compute_lrt(successes_a, sample_size, successes_b, sample_size)
-
+    
     type1_error_z = float(np.mean(p_values_z <= alpha))
     type1_error_lrt = float(np.mean(p_values_lrt <= alpha))
-    return type1_error_z, type1_error_lrt
+    type1_error_fisher = np.nan
+    
+    if run_exact:
+        p_values_fisher = compute_fisher_exact(successes_a, sample_size, successes_b, sample_size)
+        type1_error_fisher = float(np.mean(p_values_fisher <= alpha))
 
+    return type1_error_z, type1_error_lrt, type1_error_fisher
 
 def generate_type1_error_data(
     sample_sizes: list[int],
     p_baselines: list[float],
     num_replications: int = 10000,
 ) -> pd.DataFrame:
-    """Executes the full grid simulation across sample sizes and conversion rates."""
+    """Executes the full grid simulation, saving Z, LRT, and Fisher errors."""
     records: list[dict[str, float | int]] = []
 
     for p in p_baselines:
         for n in sample_sizes:
-            err_z, err_lrt = run_single_simulation(
+            # Fisher's exact can be computationally heavy in Python loops.
+            # Consider limiting it to smaller sample sizes where asymptotic tests fail.
+            run_exact = n <= 1000  
+            
+            err_z, err_lrt, err_fisher = run_single_simulation(
                 sample_size=n,
                 baseline_p=p,
                 num_replications=num_replications,
+                run_exact=run_exact
             )
             records.append(
                 {
@@ -104,11 +135,11 @@ def generate_type1_error_data(
                     "p_baseline": p,
                     "type1_z": err_z,
                     "type1_lrt": err_lrt,
+                    "type1_fisher": err_fisher,
                 }
             )
 
     return pd.DataFrame(records)
-
 
 def compute_wald_ci_diff(
     successes_a: np.ndarray,
@@ -198,8 +229,11 @@ def generate_coverage_data(
 
 def main() -> None:
     np.random.seed(42)
-    sample_sizes = [30, 50, 100, 250, 500, 1000, 5000, 20000]
+    sample_sizes = [30, 50, 100, 250, 500, 1000, 5000, 20000, 50000, 100000]
     baseline_probabilities = [0.005, 0.01, 0.05, 0.1]
+
+    output_dir = Path(__file__).resolve().parents[1] / "montecarlo_results"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     simulation_results = generate_type1_error_data(
         sample_sizes=sample_sizes,
@@ -213,10 +247,10 @@ def main() -> None:
         num_replications=5000,
     )
 
-    simulation_results.to_csv("simulation_results.csv", index=False)
-    coverage_results.to_csv("coverage_results.csv", index=False)
+    simulation_results.to_csv(output_dir / "simulation_results.csv", index=False)
+    coverage_results.to_csv(output_dir / "coverage_results.csv", index=False)
 
-    print("Saved simulation_results.csv and coverage_results.csv")
+    print(f"Saved simulation results to: {output_dir}")
 
 
 if __name__ == "__main__":

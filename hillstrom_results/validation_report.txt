@@ -1,0 +1,40 @@
+Rows in source file: 64,000
+Columns in source file: 12
+Missing values by column:
+  recency: 0
+  history_segment: 0
+  history: 0
+  mens: 0
+  womens: 0
+  zip_code: 0
+  newbie: 0
+  channel: 0
+  segment: 0
+  visit: 0
+  conversion: 0
+  spend: 0
+Exact duplicate rows (flagged, not removed): 6,562
+Rows with missing/unknown treatment label: 0
+Rows with invalid non-binary conversion: 0
+Rows retained for conversion analysis: 64,000
+Rows excluded for missing/invalid treatment or conversion: 0
+Recency outside 1--12: 0
+Negative historical spend: 0
+Spend outside 0--499: 0
+Conversion/spend inconsistencies: 0
+Conversions without visit flag: 0
+
+GROUP COUNTS
+A: n=21,307, conversions=267, rate=1.253109%
+B: n=21,387, conversions=189, rate=0.883714%
+C: n=21,306, conversions=122, rate=0.572609%
+
+Sample-ratio mismatch: chi-square(2)=0.202531, p=0.903693
+
+PRE-TREATMENT COVARIATE BALANCE
+Maximum absolute SMD: 0.016899
+
+NOTES
+Exact duplicate rows are flagged but not removed automatically.
+Rows missing an allowed treatment label or a binary conversion outcome are excluded from the analysis CSV.
+No missing outcomes are imputed.
