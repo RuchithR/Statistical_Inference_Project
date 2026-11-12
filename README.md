@@ -19,3 +19,13 @@ pip install -r requirements.txt
 ```.\venv\Scripts\Activate.ps1```
 
 If terminal restarts, run line 4 once again.
+
+## Running the code
+All executable scripts are located in the src directory. To run any script, use:
+
+```bash
+python src/filename.py
+```
+replace ```filename``` with whatever script you want to run.
+
+Note: If you are using Windows and facing issues with running the above command, try running ```python src\filename.py``` instead.

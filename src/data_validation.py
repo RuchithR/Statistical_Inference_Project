@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Clean and validate the Hillstrom data for the dataset/CI part of the project.
 
-Usage:
-    pip install pandas numpy scipy matplotlib statsmodels
+If you are running this script in a standalone setting, you will need to download the original CSV file.
+Obtain the dataset by running the following command in the terminal:
     curl -o hillstrom.csv "http://www.minethatdata.com/Kevin_Hillstrom_MineThatData_E-MailAnalytics_DataMiningChallenge_2008.03.20.csv"
-    python validate_hillstrom.py --input hillstrom.csv --outdir results
 
 The script standardizes column names and categorical whitespace, keeps rows with
 valid treatment and conversion values for the primary analysis, and writes a
@@ -128,7 +127,7 @@ def load_and_clean(path: Path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", required=True, help="Original Hillstrom CSV file")
+    parser.add_argument("--input", default="hillstrom.csv", help="Original Hillstrom CSV file")
     parser.add_argument("--outdir", default="hillstrom_results", help="Output directory")
     args = parser.parse_args()
     source = Path(args.input)

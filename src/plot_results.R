@@ -1,3 +1,5 @@
+# Run this script after running the Python data generation script to visualize the results.
+
 required_packages <- c("ggplot2", "dplyr", "tidyr", "akima")
 missing_packages <- required_packages[!vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)]
 

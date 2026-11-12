@@ -1,3 +1,11 @@
+'''
+This module performs Monte Carlo simulations to compare the finite-sample behavior of different inferential procedures for two-proportion comparisons.
+It evaluates:
+- Type I error rates for the two-proportion z-test and likelihood ratio test
+- Coverage of Wald and score-style confidence intervals
+- Approximate empirical behavior across multiple sample sizes and baseline probabilities
+
+'''
 from pathlib import Path
 
 import numpy as np

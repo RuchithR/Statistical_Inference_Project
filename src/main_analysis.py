@@ -5,6 +5,8 @@
 # Hillstrom Email Marketing Experiment
 # ============================================================
 
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 
@@ -16,9 +18,9 @@ from scipy.special import xlogy, xlog1py
 # 1. LOAD DATASET
 # ============================================================
 
-DATA_URL = 'https://raw.githubusercontent.com/AdityaDabrase/ab-testing-email-marketing/main/data/raw/hillstrom.csv'
+DATA_PATH = Path(__file__).resolve().parent.parent/"hillstrom.csv"
 
-df = pd.read_csv(DATA_URL)
+df = pd.read_csv(DATA_PATH)
 
 # Map experimental groups
 group_mapping = {
