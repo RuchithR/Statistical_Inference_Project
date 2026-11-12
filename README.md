@@ -29,3 +29,8 @@ python src/filename.py
 replace ```filename``` with whatever script you want to run.
 
 Note: If you are using Windows and facing issues with running the above command, try running ```python src\filename.py``` instead.
+
+To run the R script, use the following command if you have R installed:
+```bash
+Rscript src/plot_results.R
+```
